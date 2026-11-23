@@ -1,0 +1,57 @@
+# --- Secrets and environment ---
+# Never commit real credentials. Keep .env.example as the documented template.
+.env
+.env.*
+!.env.example
+
+# --- Go build artifacts ---
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+coverage.txt
+coverage.html
+
+# Compiled binaries produced at repo root or cmd dirs
+api
+worker
+migrate
+seed
+
+# --- Go workspace ---
+go.work
+go.work.sum
+
+# --- Frontend (Next.js, Phase 7) ---
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# --- Load testing / performance artifacts (k6, perf, pprof) ---
+*.pprof
+k6-results/
+
+# --- Local databases and dev data ---
+*.db
+*.sqlite
+data/
+backups/
+pgdata/
+
+# --- Editors and IDEs ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
