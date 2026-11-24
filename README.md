@@ -10,9 +10,10 @@ monitoring only** — no server/cloud/APM/log/Kubernetes monitoring.
 - Incident lifecycle (failure confirmation threshold → open → recovery → timeline)
 - Versioned REST API under `/api/v1` with JWT auth, RBAC, tenant isolation
 
-**Status: Phases 0–5 of the implementation plan are implemented and unit-green
-(backend). See [docs/TRACKER.md](docs/TRACKER.md) for the live progress
-tracker. Not production-ready yet — the Phase 9 checklist has not been run.**
+**Status: Phases 0–5 (backend) and Phase 7 (Next.js dashboard) are
+implemented; `make test` and `web` build + typecheck are green. See
+[docs/TRACKER.md](docs/TRACKER.md) for the live progress tracker. Not
+production-ready yet — the Phase 9 checklist has not been run.**
 
 ## Stack
 
@@ -21,7 +22,7 @@ tracker. Not production-ready yet — the Phase 9 checklist has not been run.**
 | Backend   | Go 1.26, `net/http` + chi, pgx/v5 |
 | Database  | PostgreSQL (source of truth incl. job queue), SQL migrations |
 | Auth      | Argon2id password hashing, JWT access tokens, role model |
-| Frontend  | Next.js + TypeScript + Tailwind + Recharts (Phase 7, not started) |
+| Frontend  | Next.js 15 (App Router), TypeScript, Tailwind CSS, Recharts |
 | Infra     | Docker Compose for local dev (Phase 9) |
 
 ## Architecture
@@ -75,6 +76,34 @@ Health endpoints: `GET /healthz`, `GET /readyz`.
 OpenAPI 3.1 document: `GET /api/v1/openapi.yaml` (embedded in the server
 binary; canonical source `internal/api/openapi.yaml`).
 
+## Frontend (web/)
+
+A Next.js 15 dashboard talks to the API above. The browser never sees the
+JWT: login/register/lobby through Next route handlers that set an httpOnly
+cookie, and a catch-all server-side proxy attaches the Bearer header.
+
+```bash
+cd web
+npm install
+npm run dev                  # http://localhost:3000
+
+# Point the BFF at the API (defaults to http://localhost:8080):
+API_BASE_URL=http://localhost:8080 npm run dev
+```
+
+Pages: Login/Register, Dashboard, All Monitors, Add Monitor, Monitor
+Details (uptime windows, response-time chart, check history, incidents,
+pause/resume/manual test), Incidents, Notifications and Status Pages
+(placeholder sections for their backend phases), Project/Account settings.
+Tailwind with semantic design tokens, dark/light theme, and UP/DOWN/PAUSED
+state language throughout.
+
+Production build (verified green):
+
+```bash
+cd web && npm run build && npm start
+```
+
 ## API walkthrough (curl)
 
 ```bash
@@ -124,6 +153,7 @@ curl -s localhost:8080$BASE/$MON_ID/test -X POST -H "Authorization: Bearer $TOKE
 │   ├── store/        pgx repositories + SQL migrations
 │   ├── uptime/       rollups, uptime summaries, series
 │   └── worker/       bounded-concurrency pool, probe adapters
+├── web/              Next.js dashboard (BFF auth proxy, Tailwind, Recharts)
 ├── docs/             design documents + progress tracker
 └── Makefile          build / test / vet / integration gate
 ```

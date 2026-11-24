@@ -16,7 +16,7 @@
 | 4 | Uptime calculations and incident engine | Done |
 | 5 | REST API and authentication | Done (implemented subset; no refresh-token rotation yet) |
 | 6 | Notifications (email/webhook, dedup, retry, history) | Not started |
-| 7 | Frontend dashboard (Next.js) | Not started |
+| 7 | Frontend dashboard (Next.js) | Done — build + typecheck green; Playwright smoke pending |
 | 8 | SSL / DNS / keyword / redirect monitors | Not started |
 | 9 | Status pages, deployment, load testing, prod checklist | Not started |
 
@@ -83,17 +83,47 @@ Deliberate divergences from the Phase 0 sketch are documented in
 [API_SPEC.md](API_SPEC.md) (register creates no auto-org; limit/offset +
 cursor pagination instead of page/page_size; manual test is audit-only).
 
+### Frontend (`web/` — Next.js 15, App Router, TypeScript, Tailwind, Recharts)
+
+Build + typecheck green (`npm run build` in `web/`); 18 routes compiled.
+
+- **Auth transport**: BFF pattern — the browser never touches the Go origin
+  directly and never holds the JWT. `app/api/auth/{login,register,logout}`
+  set/clear an httpOnly `s24x7_at` cookie; the catch-all
+  `app/api/proxy/[...path]` route attaches the Bearer header server-side.
+  `middleware.ts` gates the app routes on cookie presence (real verification
+  stays in the Go API on every proxy call).
+- **Design system**: semantic tokens (`surface/border/ink/accent/up/down/…`)
+  as CSS variables flipped by the `dark` class (`app/globals.css`,
+  `tailwind.config.ts`); no-FOUC theme pre-paint script in the root layout;
+  `components/ui/` provides Button, Card/StatCard, Input/Label/Select,
+  Badge/StatusDot, StateBadge, Skeleton/Empty/Error states.
+- **App shell**: sidebar + topbar (`components/layout/`), organization and
+  project selector (persisted per browser in `localStorage`, drives every
+  page's API calls via the `WorkspaceProvider` context in
+  `lib/workspace.tsx`), theme toggle, user menu with sign-out, responsive
+  drawer for mobile.
+- **Pages**: Login/Register, Dashboard (aggregate stat cards computed
+  client-side from monitors + incidents until a dedicated dashboard endpoint
+  exists), All Monitors (state filter + debounced server search), Add
+  Monitor (advanced request options; creates paused then auto-resumes),
+  Monitor Details (uptime per 24h/7d/30d/90d windows, Recharts response-time
+  series, raw check history, incidents, pause/resume/manual test),
+  Incidents (status filter, totals), plus honest Phase 6/Phase 9 placeholder
+  pages for Notifications and Status Pages (no mocked data).
+- **Client API layer**: `lib/api.ts` (typed `api()` throwing `ApiError` from
+  the backend error envelope), `lib/use-api.ts` (polling data hook), 
+  `lib/types.ts` mirrored from OpenAPI, `lib/format.ts` formatters.
+
 ## Not implemented yet (by plan order)
 
 1. **Phase 6 — notifications**: email/webhook channels, alert-policy
    binding, dispatcher with retry/backoff, delivery history, dedup
    (Postgres partial unique index authoritative; Redis `SET NX` optimization
    optional). The incident engine's `Notifier` hook is in place and unused.
-2. **Phase 7 — frontend**: Next.js app (blocked locally on a working Node
-   toolchain; GLIBCXX mismatch in the build environment).
-3. **Phase 8 — SSL/DNS/keyword/redirect monitor types** (checker package
+2. **Phase 8 — SSL/DNS/keyword/redirect monitor types** (checker package
    extensions + API validation + UI detail cards).
-4. **Phase 9 — status pages, Docker/Caddy deployment files, k6 load tests,
+3. **Phase 9 — status pages, Docker/Caddy deployment files, k6 load tests,
    production-readiness checklist** (including the missing
    `deploy/docker-compose.yml` that `make test-integration` references).
 
@@ -103,7 +133,12 @@ cursor pagination instead of page/page_size; manual test is audit-only).
   access tokens are short-lived only. Tracked under Phase 5 tail work /
   Phase 6 (they belong with the auth hardening pass).
 - Dashboard overview endpoint (aggregate counters) lands with Phase 5
-  follow-up or Phase 7, whichever the frontend consumes first.
+  follow-up or Phase 7, whichever the frontend consumes first — currently
+  the Next.js dashboard computes totals client-side from the monitors and
+  incidents endpoints.
+- Frontend: no Playwright smoke test yet (typecheck + production build are
+  green); no unit tests for lib/ helpers; monitor edit form is read-only
+  config display (edit UI pending a PUT flow pass).
 - `make test-integration` references `deploy/docker-compose.yml`, which does
   not exist yet (Phase 9 deliverable); with Docker down the Makefile path
   also depends on an exported `TEST_DATABASE_URL`.

@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens — light theme (default). RGB triplets so Tailwind can
+   control alpha (border-ink/20 etc). */
+:root {
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --surface-sunken: 246 247 250;
+  --border: 228 231 238;
+  --ink: 17 21 30;
+  --ink-muted: 92 100 117;
+  --ink-faint: 148 155 170;
+  --accent: 28 62 201;
+  --accent-hover: 22 50 168;
+  --accent-ink: 255 255 255;
+  --up: 16 156 116;
+  --down: 217 45 56;
+  --paused: 148 155 170;
+  --warn: 194 120 3;
+  --font-sans: Inter, ui-sans-serif, system-ui;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo;
+}
+
+/* Dark theme flips the roles; hue intent (links stay blue, up stays green). */
+.dark {
+  --surface: 13 16 23;
+  --surface-raised: 20 24 33;
+  --surface-sunken: 9 11 16;
+  --border: 40 46 60;
+  --ink: 232 235 242;
+  --ink-muted: 148 155 172;
+  --ink-faint: 96 103 120;
+  --accent: 96 130 255;
+  --accent-hover: 112 144 255;
+  --accent-ink: 255 255 255;
+  --up: 34 191 143;
+  --down: 246 82 93;
+  --paused: 96 103 120;
+  --warn: 232 168 56;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-accent/20;
+  }
+}
+
+@layer components {
+  .table-base {
+    @apply w-full text-left text-sm;
+  }
+  .table-base thead {
+    @apply border-b border-border text-2xs uppercase tracking-wide text-ink-faint;
+  }
+  .table-base th {
+    @apply px-4 py-2.5 font-medium;
+  }
+  .table-base td {
+    @apply border-b border-border/60 px-4 py-3 align-middle;
+  }
+  .row-link:hover {
+    @apply bg-surface-sunken/70;
+  }
+}
