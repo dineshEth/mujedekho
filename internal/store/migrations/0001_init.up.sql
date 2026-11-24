@@ -140,11 +140,6 @@ CREATE TABLE alert_policy_channels (
     PRIMARY KEY (policy_id, channel_id)
 );
 
--- Authoritative dedup constraint: one 'down' notification per open incident
--- and channel is enforced here; Redis dedup is an optimization layer.
-CREATE UNIQUE INDEX idx_deliveries_dedup ON notification_deliveries (incident_id, channel_id, kind)
-    WHERE status <> 'suppressed' AND kind IN ('down','recovered');
-
 CREATE TABLE notification_deliveries (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     incident_id   uuid   NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
@@ -158,6 +153,12 @@ CREATE TABLE notification_deliveries (
     response_ms   int,
     created_at    timestamptz NOT NULL DEFAULT now()
 );
+
+-- Authoritative dedup constraint: one 'down' notification per open incident
+-- and channel is enforced here; Redis dedup is an optimization layer.
+CREATE UNIQUE INDEX idx_deliveries_dedup ON notification_deliveries (incident_id, channel_id, kind)
+    WHERE status <> 'suppressed' AND kind IN ('down','recovered');
+
 CREATE INDEX idx_deliveries_pending ON notification_deliveries (next_retry_at) WHERE status = 'pending';
 
 CREATE TABLE status_pages (
