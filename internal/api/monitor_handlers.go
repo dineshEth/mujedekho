@@ -34,7 +34,7 @@ var errScopeMissing = errors.New("api: scope middleware not applied")
 
 const (
 	maxInterval  = 86400
-	minInterval  = 60 // per PRD: initial product floors checks at one minute
+	minInterval  = 5 // seconds; matches the monitors.interval_seconds CHECK (migration 0004)
 	maxTimeoutMs = 30000
 	maxNameLen   = 100
 	maxURLLen    = 2048
@@ -458,7 +458,7 @@ func (h *MonitorHandler) validate(p *monitorPayload) map[string]any {
 
 func (h *MonitorHandler) validateFields(interval, timeoutMs, threshold int) map[string]any {
 	if interval != 0 && (interval < minInterval || interval > maxInterval) {
-		return map[string]any{"interval_seconds": "must be between 60 and 86400"}
+		return map[string]any{"interval_seconds": "must be between 5 and 86400"}
 	}
 	if timeoutMs != 0 && (timeoutMs < 1000 || timeoutMs > maxTimeoutMs) {
 		return map[string]any{"timeout_ms": "must be between 1000 and 30000"}

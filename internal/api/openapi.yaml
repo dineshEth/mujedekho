@@ -82,7 +82,7 @@ components:
         url: { type: string, format: uri }
         request_config: { $ref: '#/components/schemas/RequestConfig' }
         check_config: { $ref: '#/components/schemas/CheckConfig' }
-        interval_seconds: { type: integer, minimum: 60, maximum: 86400 }
+        interval_seconds: { type: integer, minimum: 5, maximum: 86400 }
         timeout_ms: { type: integer, minimum: 1000, maximum: 30000 }
         failure_threshold: { type: integer, minimum: 1, maximum: 20 }
         state: { type: string, enum: [up, down, paused] }

@@ -119,4 +119,4 @@ func level(env string) string {
 	return "info"
 }
 
-const leaseSeconds = 45 // >= 3x the network timeout budget of a single check
+const leaseSeconds = 120 // > the worker run cap (3x max 30s timeout = 90s), so a slow run is never re-claimed mid-flight

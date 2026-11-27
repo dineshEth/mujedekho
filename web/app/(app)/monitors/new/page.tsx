@@ -6,7 +6,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label, Input, Select } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/feedback";
-import { api, apiPath } from "@/lib/api";
+import { api, apiPath, ApiError } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
 import type { Monitor } from "@/lib/types";
 
@@ -95,7 +95,12 @@ function MonitorForm({ submitting, error, submit, onSuccess, onFormError, submit
       });
       onSuccess(monitor);
     } catch (err) {
-      onFormError(err instanceof Error ? err : new Error("Failed to create monitor"));
+      if (err instanceof ApiError && err.details && Object.keys(err.details).length > 0) {
+        const fields = Object.entries(err.details).map(([k, v]) => `${k.replace(/_/g, " ")}: ${String(v)}`);
+        onFormError(new Error(fields.join(" · ")));
+      } else {
+        onFormError(err instanceof Error ? err : new Error("Failed to create monitor"));
+      }
       submittingSetter(false);
     }
   }
@@ -119,8 +124,8 @@ function MonitorForm({ submitting, error, submit, onSuccess, onFormError, submit
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <Label htmlFor="m-interval" hint="seconds (60–86400)">Interval</Label>
-              <Input id="m-interval" type="number" min={60} max={86400} value={intervalSeconds}
+              <Label htmlFor="m-interval" hint="seconds (5–86400)">Interval</Label>
+              <Input id="m-interval" type="number" min={5} max={86400} value={intervalSeconds}
                 onChange={(e) => setIntervalSeconds(Number(e.target.value))} className={field} />
             </div>
             <div>
