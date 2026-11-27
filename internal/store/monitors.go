@@ -240,6 +240,7 @@ func (m *Monitors) RecordOutcome(ctx context.Context, monitorID uuid.UUID, up bo
 		UPDATE monitors SET
 			consecutive_failures = CASE WHEN $2 THEN 0 ELSE consecutive_failures + 1 END,
 			state = CASE
+				WHEN state = 'paused' THEN state
 				WHEN $2 THEN 'up'::text
 				WHEN consecutive_failures + 1 >= $3 THEN 'down'::text
 				ELSE state
@@ -269,8 +270,16 @@ func (m *Monitors) SoftDelete(ctx context.Context, scope Scope, monitorID uuid.U
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	_, err = m.pool.Exec(ctx, `
+	if _, err = m.pool.Exec(ctx, `
 		UPDATE monitor_jobs SET status='pending', next_run_at='infinity',
-			lease_expires_at=NULL WHERE monitor_id=$1`, monitorID)
+			lease_expires_at=NULL WHERE monitor_id=$1`, monitorID); err != nil {
+		return err
+	}
+	// A deleted monitor can never recover, so close its open incident rather
+	// than leaving it open on dashboards forever. The record itself is kept.
+	_, err = m.pool.Exec(ctx, `
+		UPDATE incidents SET status='resolved', resolved_at=now(),
+			resolved_duration_s = GREATEST(0, EXTRACT(EPOCH FROM (now() - started_at))::int)
+		WHERE monitor_id=$1 AND status='open'`, monitorID)
 	return err
 }

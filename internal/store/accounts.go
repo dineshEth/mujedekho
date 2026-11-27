@@ -18,12 +18,12 @@ type Users struct{ pool *pgxpool.Pool }
 func NewUsers(pool *pgxpool.Pool) *Users { return &Users{pool: pool} }
 
 func (u *Users) Create(ctx context.Context, user *domain.User) error {
-	return u.pool.QueryRow(ctx, `
+	return mapErr(u.pool.QueryRow(ctx, `
 		INSERT INTO users (email, password_hash, full_name)
 		VALUES ($1, $2, $3)
 		RETURNING id, created_at, updated_at`,
 		user.Email, user.PasswordHash, user.FullName,
-	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt))
 }
 
 func (u *Users) ByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -58,10 +58,10 @@ type Organizations struct{ pool *pgxpool.Pool }
 func NewOrganizations(pool *pgxpool.Pool) *Organizations { return &Organizations{pool: pool} }
 
 func (o *Organizations) Create(ctx context.Context, org *domain.Organization) error {
-	return o.pool.QueryRow(ctx, `
+	return mapErr(o.pool.QueryRow(ctx, `
 		INSERT INTO organizations (name, slug) VALUES ($1, $2)
 		RETURNING id, created_at`, org.Name, org.Slug,
-	).Scan(&org.ID, &org.CreatedAt)
+	).Scan(&org.ID, &org.CreatedAt))
 }
 
 func (o *Organizations) Get(ctx context.Context, id uuid.UUID) (*domain.Organization, error) {
@@ -130,10 +130,10 @@ type Projects struct{ pool *pgxpool.Pool }
 func NewProjects(pool *pgxpool.Pool) *Projects { return &Projects{pool: pool} }
 
 func (p *Projects) Create(ctx context.Context, proj *domain.Project) error {
-	return p.pool.QueryRow(ctx, `
+	return mapErr(p.pool.QueryRow(ctx, `
 		INSERT INTO projects (org_id, name) VALUES ($1, $2)
 		RETURNING id, created_at`, proj.OrgID, proj.Name,
-	).Scan(&proj.ID, &proj.CreatedAt)
+	).Scan(&proj.ID, &proj.CreatedAt))
 }
 
 func (p *Projects) Get(ctx context.Context, orgID, id uuid.UUID) (*domain.Project, error) {

@@ -23,8 +23,14 @@
 **Verification snapshot (latest `make test` run):** all packages pass —
 `internal/{api,auth,checker/http,incident,safety,scheduler,store,uptime,worker}`.
 DB-gated suites (store, scheduler, incident, uptime, api) skip unless
-`TEST_DATABASE_URL` is set; the full integration run is pending a Postgres
-instance (Docker was unavailable in the build environment).
+`TEST_DATABASE_URL` is set. **2026-11-27:** full integration run green against
+PostgreSQL 17, plus an end-to-end run (register → onboarding → monitors →
+worker checks → incident → uptime → pause/delete) through the Next.js BFF.
+That run fixed: NULL scans in check history, untyped `jsonb_build_object`
+params (incidents could not open), 500→409 on duplicates, concurrent
+startup migration race (advisory lock), `/auth/me` null orgs, proxy 204
+crash, and missing org/project onboarding in the UI. The worker now owns
+rollups and `CHECK_RETENTION_DAYS` pruning.
 
 ## Implemented components
 

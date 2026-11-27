@@ -74,7 +74,7 @@ func (e *Engine) Process(ctx context.Context, mon *domain.Monitor, res domain.Ch
 	mon.ConsecutiveFailures = consec
 
 	if up {
-		return e.maybeResolve(ctx, mon, log)
+		return e.maybeResolve(ctx, mon, check.CheckedAt, log)
 	}
 	return e.maybeOpen(ctx, mon, &res, consec, log)
 }
@@ -110,7 +110,7 @@ func (e *Engine) maybeOpen(ctx context.Context, mon *domain.Monitor, res *domain
 
 // maybeResolve closes the open incident on the first successful check. If a
 // flapping failure follows, the next threshold run opens a fresh incident.
-func (e *Engine) maybeResolve(ctx context.Context, mon *domain.Monitor, log *slog.Logger) error {
+func (e *Engine) maybeResolve(ctx context.Context, mon *domain.Monitor, recoveredAt time.Time, log *slog.Logger) error {
 	if mon.ConsecutiveFailures != 0 {
 		return nil
 	}
@@ -121,7 +121,9 @@ func (e *Engine) maybeResolve(ctx context.Context, mon *domain.Monitor, log *slo
 	if err != nil {
 		return fmt.Errorf("incident: lookup open incident: %w", err)
 	}
-	ok, err := e.Incidents.Resolve(ctx, inc.ID, e.now().UTC())
+	// The recovering check's timestamp is the authoritative recovery time;
+	// wall-clock now() would skew durations for delayed or replayed results.
+	ok, err := e.Incidents.Resolve(ctx, inc.ID, recoveredAt)
 	if err != nil {
 		return fmt.Errorf("incident: resolve: %w", err)
 	}

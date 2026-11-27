@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -29,6 +29,7 @@ export default function MonitorDetailsPage() {
   const params = useParams<{ id: string }>();
   const monitorID = params.id;
   const ws = useWorkspace();
+  const router = useRouter();
   const ready = !ws.loading && !!ws.org?.id && !!ws.project?.id;
 
   const [busy, setBusy] = useState(false);
@@ -41,6 +42,20 @@ export default function MonitorDetailsPage() {
   );
 
   const mon = monitor.data;
+
+  async function doDelete() {
+    if (!ws.org || !ws.project) return;
+    if (!window.confirm("Delete this monitor? Checks stop immediately; history is kept for audit.")) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await api(apiPath.monitor(ws.org.id, ws.project.id, monitorID), { method: "DELETE" });
+      router.push("/monitors");
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to delete monitor");
+      setBusy(false);
+    }
+  }
 
   async function doAction(action: "pause" | "resume" | "test") {
     if (!ws.org || !ws.project) return;
@@ -95,6 +110,7 @@ export default function MonitorDetailsPage() {
           ) : (
             <Button variant="secondary" size="sm" disabled={busy} onClick={() => void doAction("pause")}>Pause</Button>
           )}
+          <Button variant="danger" size="sm" disabled={busy} onClick={() => void doDelete()}>Delete</Button>
         </div>
       </div>
 
@@ -106,7 +122,7 @@ export default function MonitorDetailsPage() {
 
       <section className="mt-6">
         <Card>
-          <CardHeader title="Configuration" subtitle="Values set at creation (edit support lands with the incidents API expansion)" />
+          <CardHeader title="Configuration" subtitle="Values set at creation" />
           <CardBody className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
             <ConfigRow label="Type" value={mon.monitor_type} />
             <ConfigRow label="Interval" value={`${mon.interval_seconds}s`} />

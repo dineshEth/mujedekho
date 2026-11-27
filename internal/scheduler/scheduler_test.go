@@ -134,8 +134,21 @@ func TestSchedulerDispatchesDueMonitors(t *testing.T) {
 	if ids[future.ID.String()] {
 		t.Fatal("future monitor was dispatched")
 	}
-	if len(ids) > 2 {
-		t.Fatalf("extra monitors dispatched: %v", ids)
+	// The test database is shared with other suites, so only monitors from
+	// this test's own project are meaningful here.
+	mine := 0
+	for id := range ids {
+		var proj string
+		if err := all.Pool.QueryRow(context.Background(),
+			`SELECT project_id::text FROM monitors WHERE id = $1`, id).Scan(&proj); err != nil {
+			t.Fatal(err)
+		}
+		if proj == scope.ProjectID.String() {
+			mine++
+		}
+	}
+	if mine != 2 {
+		t.Fatalf("expected exactly 2 monitors from this project dispatched, got %d (%v)", mine, ids)
 	}
 
 	// Claimed jobs are leased, not pending: an immediate second scheduler must

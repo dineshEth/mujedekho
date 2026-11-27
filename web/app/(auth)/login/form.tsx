@@ -28,7 +28,7 @@ export function LoginForm() {
         throw new Error(body?.error?.message ?? `Sign-in failed (${res.status})`);
       }
       // Full navigation so the middleware sees the freshly set cookie.
-      window.location.assign(next.startsWith("/") ? next : "/dashboard");
+      window.location.assign(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setSubmitting(false);

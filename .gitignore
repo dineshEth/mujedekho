@@ -17,11 +17,13 @@
 coverage.txt
 coverage.html
 
-# Compiled binaries produced at repo root or cmd dirs
-api
-worker
-migrate
-seed
+# Compiled binaries produced by `go build ./cmd/<name>` at the repo root.
+# Anchored with a leading slash: unanchored names would also ignore the
+# cmd/api, cmd/worker, internal/api, internal/worker and web/app/api sources.
+/api
+/worker
+/migrate
+/seed
 
 # --- Go workspace ---
 go.work

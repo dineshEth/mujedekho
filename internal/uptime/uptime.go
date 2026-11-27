@@ -165,8 +165,8 @@ func (s *Systems) Series(ctx context.Context, monitorID string, from, to time.Ti
 			sum(checks_total)::int, sum(checks_up)::int,
 			coalesce(sum(duration_ms_sum) / greatest(sum(checks_total), 1), 0)::float8
 		FROM monitoring_check_rollups_1m
-		WHERE monitor_id = $1 AND bucket_start >= $2
-		GROUP BY 1 ORDER BY 1`, monitorID, from, width)
+		WHERE monitor_id = $1 AND bucket_start >= $2 AND bucket_start < $4
+		GROUP BY 1 ORDER BY 1`, monitorID, from, width, to)
 	if err != nil {
 		return nil, err
 	}

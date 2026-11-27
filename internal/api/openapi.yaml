@@ -1,0 +1,306 @@
+openapi: 3.1.0
+info:
+  title: Site24x7 Website Monitoring API
+  version: 1.0.0
+  description: |
+    Website monitoring SaaS — availability, incidents, uptime analytics.
+    PostgreSQL is the source of truth; checks execute in cmd/worker processes.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        full_name: { type: string }
+        created_at: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: seconds }
+        user: { $ref: '#/components/schemas/User' }
+    Organization:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        created_at: { type: string, format: date-time }
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        org_id: { type: string, format: uuid }
+        name: { type: string }
+    RequestConfig:
+      type: object
+      properties:
+        method: { type: string, enum: [GET, HEAD, POST, PUT], default: GET }
+        headers: { type: object, additionalProperties: { type: string } }
+        body: { type: string }
+        expected_status_min: { type: integer, minimum: 100, maximum: 599 }
+        expected_status_max: { type: integer, minimum: 100, maximum: 599 }
+        follow_redirects: { type: boolean, default: true }
+    CheckConfig:
+      type: object
+      properties:
+        keyword: { type: string }
+        keyword_condition: { type: string, enum: [contains, not_contains] }
+        ssl_expiry_warn_days: { type: integer }
+        dns_record_type: { type: string }
+        allowed_redirect_count: { type: integer }
+        allowed_redirect_target: { type: string }
+        response_time_threshold_ms: { type: integer }
+    Monitor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        org_id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        name: { type: string }
+        monitor_type: { type: string, enum: [http, keyword, ssl, dns, redirect] }
+        url: { type: string, format: uri }
+        request_config: { $ref: '#/components/schemas/RequestConfig' }
+        check_config: { $ref: '#/components/schemas/CheckConfig' }
+        interval_seconds: { type: integer, minimum: 60, maximum: 86400 }
+        timeout_ms: { type: integer, minimum: 1000, maximum: 30000 }
+        failure_threshold: { type: integer, minimum: 1, maximum: 20 }
+        state: { type: string, enum: [up, down, paused] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CheckResult:
+      type: object
+      properties:
+        checked_at: { type: string, format: date-time }
+        status: { type: string, enum: [up, down, timeout] }
+        http_status_code: { type: integer }
+        duration_ms: { type: integer }
+        dns_ms: { type: integer }
+        connect_ms: { type: integer }
+        tls_ms: { type: integer }
+        ttfb_ms: { type: integer }
+        error_class: { type: string }
+        error_detail: { type: string }
+        response_bytes: { type: integer }
+        region: { type: string }
+    Incident:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        monitor_id: { type: string, format: uuid }
+        status: { type: string, enum: [open, resolved] }
+        started_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        resolved_duration_s: { type: integer, nullable: true }
+        cause_class: { type: string }
+  responses:
+    Err:
+      description: Error envelope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+paths:
+  /auth/register:
+    post:
+      summary: Register a user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 12 }
+                full_name: { type: string }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '409': { $ref: '#/components/responses/Err' }
+        '422': { $ref: '#/components/responses/Err' }
+  /auth/login:
+    post:
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '401': { $ref: '#/components/responses/Err' }
+        '429': { $ref: '#/components/responses/Err' }
+  /auth/me:
+    get:
+      summary: Authenticated user with organizations
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/Err' }
+  /organizations:
+    get:
+      summary: List caller's organizations
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create organization (creator becomes owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string, maxLength: 100 }
+                slug: { type: string, pattern: '^[a-z0-9][a-z0-9-]{2,49}$' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '409': { $ref: '#/components/responses/Err' }
+  /organizations/{orgID}:
+    get:
+      summary: Get organization
+      parameters: [{ name: orgID, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '403': { $ref: '#/components/responses/Err' }
+        '404': { $ref: '#/components/responses/Err' }
+  /organizations/{orgID}/projects:
+    get:
+      summary: List projects
+      parameters: [{ name: orgID, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create project (editor+)
+      parameters: [{ name: orgID, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }
+        '403': { $ref: '#/components/responses/Err' }
+  /organizations/{orgID}/projects/{projectID}/monitors:
+    parameters:
+      - { name: orgID, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: projectID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: List monitors
+      parameters:
+        - { name: state, in: query, schema: { type: string, enum: [up, down, paused] } }
+        - { name: type, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { monitors: { type: array, items: { $ref: '#/components/schemas/Monitor' } }, total: { type: integer } } } } } }
+    post:
+      summary: Create monitor (editor+). Starts paused; call /resume to arm.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name: { type: string, maxLength: 100 }
+                monitor_type: { type: string, default: http }
+                url: { type: string, format: uri, description: 'Public http(s); loopback/private/link-local/metadata targets rejected (SSRF guard)' }
+                interval_seconds: { type: integer, default: 60 }
+                timeout_ms: { type: integer, default: 10000 }
+                failure_threshold: { type: integer, default: 3 }
+                request_config: { $ref: '#/components/schemas/RequestConfig' }
+                check_config: { $ref: '#/components/schemas/CheckConfig' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Monitor' } } } }
+        '422': { $ref: '#/components/responses/Err' }
+  /organizations/{orgID}/projects/{projectID}/monitors/{monitorID}:
+    parameters:
+      - { name: orgID, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: projectID, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: monitorID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Monitor with latest check
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Err' } }
+    put:
+      summary: Update monitor (editor+)
+      responses: { '200': { description: OK }, '422': { $ref: '#/components/responses/Err' } }
+    delete:
+      summary: Soft-delete monitor (editor+)
+      responses: { '204': { description: Deleted } }
+  /organizations/{orgID}/projects/{projectID}/monitors/{monitorID}/pause:
+    post:
+      summary: Pause scheduling
+      responses: { '200': { description: OK } }
+  /organizations/{orgID}/projects/{projectID}/monitors/{monitorID}/resume:
+    post:
+      summary: Resume scheduling
+      responses: { '200': { description: OK } }
+  /organizations/{orgID}/projects/{projectID}/monitors/{monitorID}/test:
+    post:
+      summary: Synchronous manual check (persisted as an audit row; does not touch incidents)
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { result: { $ref: '#/components/schemas/CheckResult' } } } } } }, '503': { $ref: '#/components/responses/Err' } }
+  /organizations/{orgID}/projects/{projectID}/monitors/{monitorID}/history:
+    get:
+      summary: Cursor-paged check history
+      parameters:
+        - { name: window_minutes, in: query, schema: { type: integer, default: 1440, maximum: 129600 } }
+        - { name: cursor, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 1000 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { checks: { type: array, items: { $ref: '#/components/schemas/CheckResult' } }, next_cursor: { type: string } } } } } }
+  /organizations/{orgID}/projects/{projectID}/monitors/{monitorID}/uptime:
+    get:
+      summary: Uptime summary + series
+      parameters:
+        - { name: window, in: query, schema: { type: string, enum: [24h, 7d, 30d, 90d] } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: OK }
+        '400': { $ref: '#/components/responses/Err' }
+  /organizations/{orgID}/projects/{projectID}/incidents:
+    get:
+      summary: List incidents
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [open, resolved] } }
+        - { name: monitor_id, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer } }
+        - { name: offset, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { incidents: { type: array, items: { $ref: '#/components/schemas/Incident' } }, total: { type: integer } } } } } }
+  /organizations/{orgID}/projects/{projectID}/incidents/{incidentID}:
+    get:
+      summary: Incident with event timeline
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/Err' }

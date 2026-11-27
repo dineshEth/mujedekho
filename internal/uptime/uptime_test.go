@@ -38,20 +38,18 @@ func TestRollupAndSummary(t *testing.T) {
 
 	user := &domain.User{Email: "up-" + suffix + "@example.com", PasswordHash: "x", FullName: "F"}
 	org := &domain.Organization{Name: "Org up", Slug: "up-" + suffix}
-	proj := &domain.Project{OrgID: org.ID, Name: "p"}
-	scope := store.Scope{OrgID: org.ID, ProjectID: proj.ID}
-	for _, f := range []struct {
-		err error
-		fn  func() error
-	}{
-		{fn: func() error { return all.Users.Create(ctx, user) }},
-		{fn: func() error { return all.Organizations.Create(ctx, org) }},
-		{fn: func() error { return all.Projects.Create(ctx, proj) }},
-	} {
-		if err := f.fn(); err != nil {
-			t.Fatal(err)
-		}
+	proj := &domain.Project{Name: "p"}
+	if err := all.Users.Create(ctx, user); err != nil {
+		t.Fatal(err)
 	}
+	if err := all.Organizations.Create(ctx, org); err != nil {
+		t.Fatal(err)
+	}
+	proj.OrgID = org.ID // org.ID only exists after Create
+	if err := all.Projects.Create(ctx, proj); err != nil {
+		t.Fatal(err)
+	}
+	scope := store.Scope{OrgID: org.ID, ProjectID: proj.ID}
 	mon := &domain.Monitor{
 		OrgID: org.ID, ProjectID: proj.ID, Name: "mon", Type: domain.MonitorTypeHTTP,
 		URL: "https://example.com/", IntervalSeconds: 60, TimeoutMs: 5000,
@@ -62,7 +60,7 @@ func TestRollupAndSummary(t *testing.T) {
 	}
 
 	base := time.Now().UTC().Truncate(time.Minute).Add(-10 * time.Minute)
-	// 8 up checks (2 minutes), 2 down checks (1 minute).
+	// 8 up checks (4 minutes), 2 down checks (1 minute).
 	insert := func(at time.Time, up bool, ms int64) {
 		r := &domain.CheckResult{
 			MonitorID: mon.ID, CheckedAt: at, DurationMs: ms, Region: "test",
@@ -115,9 +113,10 @@ func TestRollupAndSummary(t *testing.T) {
 	if sum.ChecksUp != 8 {
 		t.Fatalf("checks_up = %d, want 8", sum.ChecksUp)
 	}
-	// 4 observed minutes: 3 up, 1 down -> 75%.
-	if sum.UptimePct == nil || *sum.UptimePct != 75.0 {
-		t.Fatalf("uptime = %v, want 75.0", sum.UptimePct)
+	// 8 up checks 30s apart span 4 minutes; 2 down checks fill a 5th.
+	// 5 observed minutes: 4 up, 1 down -> 80%.
+	if sum.UptimePct == nil || *sum.UptimePct != 80.0 {
+		t.Fatalf("uptime = %v, want 80.0", deref(sum.UptimePct))
 	}
 	if sum.DowntimeSec != 60 {
 		t.Fatalf("downtime = %ds, want 60", sum.DowntimeSec)
@@ -140,4 +139,11 @@ func TestRollupAndSummary(t *testing.T) {
 	if len(pts) == 0 {
 		t.Fatal("series empty")
 	}
+}
+
+func deref(p *float64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }

@@ -52,19 +52,23 @@ customer -> cmd/api (REST /api/v1)
 
 ## Quickstart (local development)
 
-Prerequisites: Go 1.26+, PostgreSQL (local dev instance or Docker — the
-compose file lands in Phase 9), optionally Redis.
+Prerequisites: Go 1.26+, Node 20+, PostgreSQL (or Docker/Podman for the
+bundled compose file), optionally Redis.
 
 ```bash
-cp .env.example .env         # then fill DATABASE_URL and JWT_SECRET
-source .env                  # or export manually
+make db-up                   # postgres + redis via deploy/docker-compose.yml
+cp .env.example .env         # then set JWT_SECRET (32+ chars); .env is auto-loaded
 
-go run ./cmd/migrate         # apply SQL migrations
-SEED_PASSWORD=dev-password-only go run ./cmd/seed   # dev seed (refuses production)
+go run ./cmd/migrate         # optional: api/worker also migrate on start (advisory-locked)
+SEED_PASSWORD=dev-password-only go run ./cmd/seed   # optional dev seed (refuses production)
 
 go run ./cmd/api             # REST API on :8080
-go run ./cmd/worker          # scheduler + check workers
+go run ./cmd/worker          # scheduler + check workers + rollups/retention
+cd web && npm install && npm run dev   # dashboard on http://localhost:3000
 ```
+
+Register in the dashboard; the first visit walks you through creating an
+organization and project, then add a monitor.
 
 Required environment (see `.env.example` for the full list):
 

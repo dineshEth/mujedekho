@@ -1,0 +1,27 @@
+# Local development services. Credentials here are dev-only defaults and
+# match .env.example / `make test-integration`; never reuse them elsewhere.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: site24x7
+      POSTGRES_PASSWORD: site24x7
+      POSTGRES_DB: site24x7
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U site24x7"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:

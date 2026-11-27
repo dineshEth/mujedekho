@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 
 /** After a successful register the API creates the user only — the first
- * organization is created on the dashboard onboarding card. */
+ * organization is created on the dashboard onboarding card (components/onboarding.tsx). */
 export function RegisterForm() {
-  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,12 +23,15 @@ export function RegisterForm() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        const details = body?.error?.details as { password?: string[] } | undefined;
-        const msg = details?.password?.[0] ?? body?.error?.message ?? `Registration failed (${res.status})`;
+        const details = body?.error?.details as Record<string, string> | undefined;
+        const fieldMsgs = details ? Object.entries(details).map(([k, v]) => `${k.replace("_", " ")} ${v}`) : [];
+        const msg = res.status === 409
+          ? "An account with this email already exists."
+          : fieldMsgs[0] ?? body?.error?.message ?? `Registration failed (${res.status})`;
         throw new Error(msg);
       }
-      router.replace("/dashboard?welcome=1");
-      router.refresh();
+      // Full navigation so the middleware sees the freshly set cookie.
+      window.location.assign("/dashboard?welcome=1");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setSubmitting(false);

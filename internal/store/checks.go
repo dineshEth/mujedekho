@@ -62,9 +62,10 @@ func (c *Checks) List(ctx context.Context, monitorID uuid.UUID, from, to time.Ti
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
-	q := `SELECT monitor_id, checked_at, status, http_status_code, duration_ms,
-			dns_ms, connect_ms, tls_ms, ttfb_ms, error_class, error_detail,
-			response_bytes, region, detail
+	q := `SELECT monitor_id, checked_at, status, COALESCE(http_status_code, 0), duration_ms,
+			COALESCE(dns_ms, 0), COALESCE(connect_ms, 0), COALESCE(tls_ms, 0),
+			COALESCE(ttfb_ms, 0), error_class, COALESCE(error_detail, ''),
+			COALESCE(response_bytes, 0), region, detail
 		FROM monitoring_checks
 		WHERE monitor_id = $1 AND checked_at >= $2 AND checked_at < $3`
 	args := []any{monitorID, from, to}
@@ -110,9 +111,10 @@ func (c *Checks) List(ctx context.Context, monitorID uuid.UUID, from, to time.Ti
 // Latest returns the most recent check for the monitor, or ErrNotFound.
 func (c *Checks) Latest(ctx context.Context, monitorID uuid.UUID) (*domain.CheckResult, error) {
 	row := c.pool.QueryRow(ctx, `
-		SELECT monitor_id, checked_at, status, http_status_code, duration_ms,
-			dns_ms, connect_ms, tls_ms, ttfb_ms, error_class, error_detail,
-			response_bytes, region, detail
+		SELECT monitor_id, checked_at, status, COALESCE(http_status_code, 0), duration_ms,
+			COALESCE(dns_ms, 0), COALESCE(connect_ms, 0), COALESCE(tls_ms, 0),
+			COALESCE(ttfb_ms, 0), error_class, COALESCE(error_detail, ''),
+			COALESCE(response_bytes, 0), region, detail
 		FROM monitoring_checks WHERE monitor_id = $1
 		ORDER BY checked_at DESC LIMIT 1`, monitorID)
 	var r domain.CheckResult

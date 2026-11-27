@@ -8,6 +8,7 @@ import { fmtRelative, fmtUptime, fmtMs } from "@/lib/format";
 import { api, apiPath, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useWorkspace } from "@/lib/workspace";
+import { Onboarding } from "@/components/onboarding";
 import type { Monitor, Incident } from "@/lib/types";
 
 /** Dashboard aggregates client-side from project endpoints: the backend does
@@ -26,7 +27,11 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
-      <DashboardBody wsReady={!ws.loading && !!ws.org && !!ws.project} />
+      {!ws.loading && (!ws.org || !ws.project) ? (
+        <Onboarding />
+      ) : (
+        <DashboardBody wsReady={!ws.loading && !!ws.org && !!ws.project} />
+      )}
     </div>
   );
 }
@@ -127,7 +132,7 @@ function DashboardBody({ wsReady }: { wsReady: boolean }) {
             <ul className="divide-y divide-border/60">
               {incidentsList.slice(0, 6).map((i) => (
                 <li key={i.id} className="px-5 py-3">
-                  <IncidentRow incident={i} />
+                  <IncidentRow incident={i} monitorName={list.find((m) => m.id === i.monitor_id)?.name} />
                 </li>
               ))}
             </ul>
@@ -138,18 +143,13 @@ function DashboardBody({ wsReady }: { wsReady: boolean }) {
   );
 }
 
-function IncidentRow({ incident }: { incident: Incident }) {
-  const ws = useWorkspace();
-  const orgID = ws.org?.id ?? "";
-  const projID = ws.project?.id ?? "";
-  const monitor = useMonitorLite(orgID, projID, incident.monitor_id);
-
+function IncidentRow({ incident, monitorName }: { incident: Incident; monitorName?: string }) {
   return (
     <Link href={`/incidents`} className="block">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
-            {monitor?.name ?? incident.monitor_id.slice(0, 8)}
+            {monitorName ?? incident.monitor_id.slice(0, 8)}
           </p>
           <p className="text-2xs text-ink-faint">
             Started {fmtRelative(incident.started_at)}
@@ -162,10 +162,4 @@ function IncidentRow({ incident }: { incident: Incident }) {
       </div>
     </Link>
   );
-}
-
-/** Lightweight fetch of monitor names for incident rows (no cache layer yet). */
-function useMonitorLite(orgID: string, projID: string, monitorID: string) {
-  const monitors = useApi<{ monitors: Monitor[] }>(apiPath.monitors(orgID, projID));
-  return monitors.data?.monitors?.find((m) => m.id === monitorID) ?? null;
 }

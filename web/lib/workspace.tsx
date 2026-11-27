@@ -40,7 +40,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api<MeResponse>(apiPath.me);
+      const raw = await api<MeResponse>(apiPath.me);
+      const data: MeResponse = { ...raw, organizations: raw.organizations ?? [] };
       setMe(data);
       const stored = window.localStorage.getItem(LS_ORG);
       const valid = data.organizations.find((o) => o.id === stored) ?? data.organizations[0] ?? null;

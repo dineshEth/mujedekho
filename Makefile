@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 GOFILES := $(shell find . -name '*.go' ! -path './web/*' 2>/dev/null)
 
-.PHONY: build test vet test-integration fmt run-api run-migrate run-seed
+.PHONY: build test vet test-integration fmt run-api run-worker run-migrate run-seed db-up db-down
 
 build:
 	go build ./...
@@ -31,6 +31,16 @@ test-integration: vet
 
 run-api:
 	go run ./cmd/api
+
+run-worker:
+	go run ./cmd/worker
+
+# Local PostgreSQL + Redis for development (docker compose).
+db-up:
+	docker compose -f deploy/docker-compose.yml up -d postgres redis
+
+db-down:
+	docker compose -f deploy/docker-compose.yml down
 
 run-migrate:
 	go run ./cmd/migrate

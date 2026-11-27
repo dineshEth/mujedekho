@@ -29,6 +29,10 @@ export async function api<T>(path: string, init?: RequestInit & { query?: Record
     cache: "no-store",
   });
 
+  if (res.status === 401) {
+    const next = window.location.pathname + window.location.search;
+    window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+  }
   if (!res.ok) {
     let body: ApiErrorBody = {};
     try {
@@ -44,6 +48,7 @@ export async function api<T>(path: string, init?: RequestInit & { query?: Record
 
 export const apiPath = {
   me: "auth/me",
+  organizations: "organizations",
   projects: (orgID: string) => `organizations/${orgID}/projects`,
   monitors: (orgID: string, projID: string) => `organizations/${orgID}/projects/${projID}/monitors`,
   monitor: (orgID: string, projID: string, id: string) => `${apiPath.monitors(orgID, projID)}/${id}`,

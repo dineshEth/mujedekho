@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -48,10 +49,29 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-// Migrate applies pending migrations in order inside transactions.
-// It returns the number of applied migrations.
+// migrateLockID is the pg_advisory_lock key serializing migration runs. The
+// API, worker and migrate binaries all migrate at startup; without the lock,
+// concurrent starts race on CREATE TABLE and could apply a migration twice.
+const migrateLockID = 7_247_001
+
+// Migrate applies pending migrations in order inside transactions, holding a
+// session-level advisory lock for the whole run. It returns the number of
+// migrations applied by this call.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) (int, error) {
-	if _, err := pool.Exec(ctx, `
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("store: acquire migration conn: %w", err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrateLockID); err != nil {
+		return 0, fmt.Errorf("store: migration lock: %w", err)
+	}
+	defer func() {
+		// Fresh context: unlock must happen even if ctx was cancelled.
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, migrateLockID)
+	}()
+
+	if _, err := conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    text PRIMARY KEY,
 			applied_at timestamptz NOT NULL DEFAULT now()
@@ -65,38 +85,40 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) (int, error) {
 	}
 	sort.Strings(entries)
 
+	applied := 0
 	for _, path := range entries {
 		version := versionOf(path)
 		var exists bool
-		if err := pool.QueryRow(ctx,
+		if err := conn.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists); err != nil {
-			return 0, err
+			return applied, err
 		}
 		if exists {
 			continue
 		}
 		sqlBytes, err := migrationsFS.ReadFile(path)
 		if err != nil {
-			return 0, fmt.Errorf("store: read %s: %w", path, err)
+			return applied, fmt.Errorf("store: read %s: %w", path, err)
 		}
-		tx, err := pool.Begin(ctx)
+		tx, err := conn.Begin(ctx)
 		if err != nil {
-			return 0, err
+			return applied, err
 		}
 		if _, err := tx.Exec(ctx, string(sqlBytes)); err != nil {
 			_ = tx.Rollback(ctx)
-			return 0, fmt.Errorf("store: apply %s: %w", path, err)
+			return applied, fmt.Errorf("store: apply %s: %w", path, err)
 		}
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO schema_migrations (version) VALUES ($1)`, version); err != nil {
 			_ = tx.Rollback(ctx)
-			return 0, err
+			return applied, err
 		}
 		if err := tx.Commit(ctx); err != nil {
-			return 0, err
+			return applied, err
 		}
+		applied++
 	}
-	return len(entries), nil
+	return applied, nil
 }
 
 func versionOf(path string) string {
@@ -105,4 +127,14 @@ func versionOf(path string) string {
 		return base[:i]
 	}
 	return base
+}
+
+// mapErr translates driver errors into store sentinels: unique violations
+// become ErrConflict so handlers can answer 409 instead of 500.
+func mapErr(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return fmt.Errorf("%w: %s", ErrConflict, pgErr.ConstraintName)
+	}
+	return err
 }

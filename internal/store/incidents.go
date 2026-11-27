@@ -50,7 +50,7 @@ func (i *Incidents) Open(ctx context.Context, monitorID uuid.UUID, startedAt tim
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO incident_events (incident_id, event_type, payload)
-		VALUES ($1, 'opened', jsonb_build_object('cause_class', $2))`, id, causeClass); err != nil {
+		VALUES ($1, 'opened', jsonb_build_object('cause_class', $2::text))`, id, causeClass); err != nil {
 		return uuid.Nil, false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -76,7 +76,7 @@ func (i *Incidents) Resolve(ctx context.Context, incidentID uuid.UUID, recovered
 	}
 	_, err = i.pool.Exec(ctx, `
 		INSERT INTO incident_events (incident_id, event_type, payload)
-		VALUES ($1, 'recovered', jsonb_build_object('recovered_at', $2))`,
+		VALUES ($1, 'recovered', jsonb_build_object('recovered_at', $2::timestamptz))`,
 		incidentID, recoveredAt)
 	return true, err
 }
@@ -208,6 +208,6 @@ func (i *Incidents) Get(ctx context.Context, orgID, incidentID uuid.UUID) (*doma
 func (i *Incidents) Annotate(ctx context.Context, incidentID uuid.UUID, note string) error {
 	_, err := i.pool.Exec(ctx, `
 		INSERT INTO incident_events (incident_id, event_type, payload)
-		VALUES ($1, 'annotated', jsonb_build_object('note', $2))`, incidentID, note)
+		VALUES ($1, 'annotated', jsonb_build_object('note', $2::text))`, incidentID, note)
 	return err
 }
