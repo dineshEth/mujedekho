@@ -63,3 +63,9 @@ export const ERROR_CLASS_LABEL: Record<string, string> = {
   internal_error: "Internal error",
   blocked_target: "Target blocked (SSRF guard)",
 };
+
+export function fmtInterval(s: number): string {
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return s % 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s / 60}m`;
+  return s % 3600 ? `${(s / 3600).toFixed(1)}h` : `${s / 3600}h`;
+}

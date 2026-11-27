@@ -1,20 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
-import { apiPath } from "@/lib/api";
-import type { Project } from "@/lib/types";
 import { useWorkspace } from "@/lib/workspace";
+import { NewProjectDialog } from "@/components/projects/new-project-dialog";
 
 /** Organization / project pair selector in the topbar. Selection drives every
  * page's API calls; persisted per browser via the workspace context. */
 export function OrgProjectSelector() {
   const ws = useWorkspace();
-  const [projects, setProjects] = useState<Project[]>(ws.projects);
+  const projects = ws.projects;
+  const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState<"org" | "project" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => setProjects(ws.projects), [ws.projects]);
 
   useEffect(() => {
     if (!open) return;
@@ -37,22 +35,6 @@ export function OrgProjectSelector() {
   async function pickProject(id: string) {
     ws.setProject(id);
     setOpen(null);
-  }
-
-  async function createProject() {
-    const name = window.prompt("New project name");
-    if (!name || !ws.org) return;
-    try {
-      const res = await api<Project>(apiPath.projects(ws.org.id), {
-        method: "POST",
-        body: JSON.stringify({ name }),
-      });
-      ws.setOrg(ws.org.id); // reloads projects through the context
-      setProjects((p) => [...p, res]);
-      setOpen(null);
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Failed to create project");
-    }
   }
 
   return (
@@ -83,8 +65,13 @@ export function OrgProjectSelector() {
           </MenuItem>
         ))}
         <div className="my-1 border-t border-border" />
-        <MenuItem onClick={() => void createProject()}>+ New project</MenuItem>
+        <MenuItem onClick={() => { setOpen(null); setCreating(true); }}>+ New project</MenuItem>
+        <Link href="/projects" onClick={() => setOpen(null)} role="menuitem"
+          className="block w-full px-3 py-1.5 text-left text-sm text-ink-muted hover:bg-surface-sunken hover:text-ink">
+          Manage projects
+        </Link>
       </MenuButton>
+      <NewProjectDialog open={creating} onClose={() => setCreating(false)} />
     </div>
   );
 }

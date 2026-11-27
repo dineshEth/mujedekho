@@ -18,6 +18,8 @@ interface WorkspaceValue {
   projects: Project[];
   setOrg: (id: string) => void;
   setProject: (id: string) => void;
+  /** Create a project in the active org and switch to it. */
+  createProject: (name: string) => Promise<Project>;
   reload: () => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -89,6 +91,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     if (orgId) window.localStorage.setItem(LS_PROJ(orgId), id);
   }, [orgId]);
 
+  const createProject = useCallback(async (name: string) => {
+    if (!orgId) throw new Error("Select an organization first.");
+    const created = await api<Project>(apiPath.projects(orgId), {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+    setProjects((list) => [...list, created]);
+    setProjectIdState(created.id);
+    window.localStorage.setItem(LS_PROJ(orgId), created.id);
+    return created;
+  }, [orgId]);
+
   // Sync the active project's record from the loaded list (freshness).
   const org = me?.organizations.find((o) => o.id === orgId) ?? null;
   const project = projects.find((p) => p.id === projectId) ?? null;
@@ -101,6 +115,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     projects,
     setOrg,
     setProject,
+    createProject,
     reload: loadMe,
     loading,
     error,

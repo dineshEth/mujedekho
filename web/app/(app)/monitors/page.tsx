@@ -6,11 +6,12 @@ import { Card, CardHeader, CardBody, StatCard } from "@/components/ui/card";
 import { StateBadge } from "@/components/ui/state-badge";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/feedback";
 import { Input, Select } from "@/components/ui/input";
-import { fmtRelative, fmtUptime } from "@/lib/format";
+import { CheckStrip } from "@/components/monitor/check-grid";
+import { fmtInterval, fmtMs, fmtRelative } from "@/lib/format";
 import { apiPath } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useWorkspace } from "@/lib/workspace";
-import type { Monitor } from "@/lib/types";
+import type { CheckResult, Monitor } from "@/lib/types";
 
 type StateFilter = "all" | "up" | "down" | "paused";
 
@@ -121,32 +122,52 @@ function MonitorsTable({ monitors }: { monitors: ReturnType<typeof useApi<{ moni
           <tr>
             <th>Name</th>
             <th>State</th>
-            <th>URL</th>
+            <th>Recent checks</th>
+            <th className="text-right">Uptime</th>
+            <th className="text-right">Response</th>
             <th className="text-right">Interval</th>
-            <th className="text-right">Last change</th>
           </tr>
         </thead>
         <tbody>
-          {list.map((m) => (
-            <tr key={m.id} className="row-link">
-              <td>
-                <Link href={`/monitors/${m.id}`} className="block">
-                  <span className="font-medium text-ink">{m.name}</span>
-                  <span className="sr-only"> — open details</span>
-                </Link>
-              </td>
-              <td><StateBadge state={m.state} /></td>
-              <td><Link href={`/monitors/${m.id}`} className="block truncate font-mono text-2xs text-ink-muted max-w-[260px]">{m.url}</Link></td>
-              <td className="text-right tabular-nums text-ink-muted">{m.interval_seconds}s</td>
-              <td className="text-right text-2xs text-ink-faint">{fmtRelative(m.updated_at)}</td>
-            </tr>
-          ))}
+          {list.map((m) => <MonitorRow key={m.id} m={m} />)}
         </tbody>
       </table>
-      <p className="px-4 py-2 text-2xs text-ink-faint">
-        Uptime details are per monitor — open one to see its {fmtUptime(null) === "no data" ? "24h/7d/30d/90d" : ""} windows.
-      </p>
     </div>
+  );
+}
+
+/** One row; fetches its own last 30 checks so the strip stays live. */
+function MonitorRow({ m }: { m: Monitor }) {
+  const ws = useWorkspace();
+  const history = useApi<{ checks: CheckResult[] }>(
+    ws.org && ws.project ? apiPath.history(ws.org.id, ws.project.id, m.id, "?limit=30&window_minutes=129600") : null,
+    { pollMs: 30_000 },
+  );
+  const checks = history.data?.checks ?? [];
+  const up = checks.filter((c) => c.status === "up").length;
+  const pct = checks.length ? (up / checks.length) * 100 : null;
+  const last = checks[0];
+  return (
+    <tr className="row-link">
+      <td className="max-w-[280px]">
+        <Link href={`/monitors/${m.id}`} className="block">
+          <span className="block truncate font-medium text-ink">{m.name}</span>
+          <span className="block truncate font-mono text-2xs text-ink-faint">{m.url}</span>
+        </Link>
+      </td>
+      <td><StateBadge state={m.state} /></td>
+      <td>
+        {history.loading ? <div className="h-6 w-[210px] animate-pulse rounded bg-surface-sunken" /> : <CheckStrip checks={checks} />}
+      </td>
+      <td className={`text-right tabular-nums ${pct == null ? "text-ink-faint" : pct >= 99 ? "text-up" : pct >= 95 ? "text-warn" : "text-down"}`}>
+        {pct == null ? "—" : `${pct.toFixed(pct === 100 ? 0 : 1)}%`}
+      </td>
+      <td className="text-right">
+        <span className="tabular-nums">{last ? fmtMs(last.duration_ms) : "—"}</span>
+        <span className="block text-2xs text-ink-faint">{last ? fmtRelative(last.checked_at) : "no checks"}</span>
+      </td>
+      <td className="text-right tabular-nums text-ink-muted">{fmtInterval(m.interval_seconds)}</td>
+    </tr>
   );
 }
 

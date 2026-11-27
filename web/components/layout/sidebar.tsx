@@ -7,6 +7,7 @@ import { useWorkspace } from "@/lib/workspace";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
   { href: "/monitors", label: "Monitors", icon: "monitor" },
+  { href: "/projects", label: "Projects", icon: "folder" },
   { href: "/incidents", label: "Incidents", icon: "alert" },
   { href: "/notifications", label: "Notifications", icon: "bell" },
   { href: "/status-pages", label: "Status Pages", icon: "page" },
@@ -20,6 +21,8 @@ function Icon({ name }: { name: (typeof NAV)[number]["icon"] }) {
       return <svg viewBox="0 0 20 20" fill="none" className={cls} aria-hidden><rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/></svg>;
     case "monitor":
       return <svg viewBox="0 0 20 20" fill="none" className={cls} aria-hidden><rect x="2.5" y="4" width="15" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><path d="M7 17h6M10 14v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "folder":
+      return <svg viewBox="0 0 20 20" fill="none" className={cls} aria-hidden><path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.5l2 2H16A1.5 1.5 0 0 1 17.5 8v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5V6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>;
     case "alert":
       return <svg viewBox="0 0 20 20" fill="none" className={cls} aria-hidden><path d="M10 3 2.5 16h15L10 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M10 8v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="10" cy="14" r="0.8" fill="currentColor"/></svg>;
     case "bell":
