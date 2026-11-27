@@ -21,17 +21,28 @@ type Checks struct{ pool *pgxpool.Pool }
 func NewChecks(pool *pgxpool.Pool) *Checks { return &Checks{pool: pool} }
 
 // Insert stores a check result. Duplicate (monitor, checked_at) writes are
-// silently ignored.
+// silently ignored. An unset Detail must arrive as SQL NULL — an empty string
+// is not valid JSON for the ::jsonb cast.
 func (c *Checks) Insert(ctx context.Context, r *domain.CheckResult) error {
+	var detailParam any
+	if len(r.Detail) > 0 {
+		detailParam = []byte(r.Detail)
+	}
+	// Zero means "no HTTP status" (transport-level failure); the schema's
+	// CHECK (http_status_code BETWEEN 100 AND 599) wants NULL, not 0.
+	var httpStatus any
+	if r.HTTPStatusCode >= 100 && r.HTTPStatusCode <= 599 {
+		httpStatus = r.HTTPStatusCode
+	}
 	tag, err := c.pool.Exec(ctx, `
 		INSERT INTO monitoring_checks (monitor_id, checked_at, status,
 			http_status_code, duration_ms, dns_ms, connect_ms, tls_ms, ttfb_ms,
 			error_class, error_detail, response_bytes, region, detail)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)
 		ON CONFLICT (monitor_id, checked_at) DO NOTHING`,
-		r.MonitorID, r.CheckedAt, string(r.Status), r.HTTPStatusCode, r.DurationMs,
+		r.MonitorID, r.CheckedAt, string(r.Status), httpStatus, r.DurationMs,
 		r.DNSMs, r.ConnectMs, r.TLSMs, r.TTFBMs,
-		string(r.ErrorClass), r.ErrorDetail, r.ResponseBytes, r.Region, string(r.Detail))
+		string(r.ErrorClass), r.ErrorDetail, r.ResponseBytes, r.Region, detailParam)
 	if err != nil {
 		return fmt.Errorf("store: insert check: %w", err)
 	}

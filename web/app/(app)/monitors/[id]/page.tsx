@@ -35,12 +35,12 @@ export default function MonitorDetailsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<CheckResult | null>(null);
 
-  const monitor = useApi<{ monitor: Monitor; latest_check: CheckResult | null }>(
+  const monitor = useApi<Monitor & { latest_check: CheckResult | null }>(
     ready ? apiPath.monitor(ws.org!.id, ws.project!.id, monitorID) : null,
     { pollMs: 15_000 },
   );
 
-  const mon = monitor.data?.monitor;
+  const mon = monitor.data;
 
   async function doAction(action: "pause" | "resume" | "test") {
     if (!ws.org || !ws.project) return;
@@ -150,7 +150,8 @@ function TestResultCard({ result, onDismiss }: { result: CheckResult; onDismiss:
 
 function MonitorSections({ orgID, projID, monitorID, intervalSeconds }: { orgID: string; projID: string; monitorID: string; intervalSeconds: number }) {
   const [win, setWin] = useState<WindowKey>("24h");
-  const uptime = useApi<UptimeSummary & { series?: UptimeBucket[] }>(
+  // Backend shape: { series: Bucket[] | null, window: UptimeSummary }.
+  const uptime = useApi<{ series: UptimeBucket[] | null; window: UptimeSummary }>(
     `${apiPath.uptime(orgID, projID, monitorID, `?window=${win}`)}`,
     { pollMs: 60_000 },
   );
@@ -162,7 +163,7 @@ function MonitorSections({ orgID, projID, monitorID, intervalSeconds }: { orgID:
     `${apiPath.incidents(orgID, projID, `?monitor_id=${monitorID}&limit=10`)}`,
   );
 
-  const summary = uptime.data;
+  const summary = uptime.data?.window;
   void intervalSeconds;
 
   return (
@@ -177,7 +178,7 @@ function MonitorSections({ orgID, projID, monitorID, intervalSeconds }: { orgID:
         <StatCard label="Checks total" value={summary?.checks_total ?? "—"} hint={`${summary?.checks_up ?? "—"} successful`} />
         <StatCard
           label="Avg response"
-          value={averageMs(uptime.data?.series)}
+          value={averageMs(uptime.data?.series ?? undefined)}
           hint={`window ${win}`}
         />
         <StatCard label="Open incidents" value={(incidents.data?.incidents ?? []).filter((i) => i.status === "open").length} tone="neutral" />
