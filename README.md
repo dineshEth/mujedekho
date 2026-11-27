@@ -50,6 +50,30 @@ customer -> cmd/api (REST /api/v1)
 - **Uptime semantics**: missing data is reported as `no_data` and never
   counted as uptime or downtime. 1-minute rollups power long windows.
 
+## Quickstart with Docker (one command)
+
+Needs only Docker with the Compose plugin:
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+```
+
+- Dashboard: http://localhost:3000 (register an account on first visit)
+- API: http://localhost:8080
+
+This starts PostgreSQL, Redis, a one-shot `migrate` job, the API, the
+worker and the Next.js web app. Useful follow-ups:
+
+```bash
+docker compose logs -f api worker web   # follow logs
+docker compose run --rm seed            # optional demo data (demo@example.com / demo-password-123)
+docker compose down                     # stop (data kept in the pgdata volume)
+docker compose down -v                  # stop and wipe the database
+```
+
+Defaults are dev-only. Override them by exporting variables or putting them
+in a root `.env` (e.g. `JWT_SECRET=...`, `WEB_PORT=3001`, `API_PORT=8081`).
+
 ## Quickstart (local development)
 
 Prerequisites: Go 1.26+, Node 20+, PostgreSQL (or Docker/Podman for the

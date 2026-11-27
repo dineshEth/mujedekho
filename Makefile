@@ -1,7 +1,17 @@
 SHELL := /bin/bash
 GOFILES := $(shell find . -name '*.go' ! -path './web/*' 2>/dev/null)
 
-.PHONY: build test vet test-integration fmt run-api run-worker run-migrate run-seed db-up db-down
+.PHONY: up down logs build test vet test-integration fmt run-api run-worker run-migrate run-seed db-up db-down
+
+# Full stack in Docker: postgres, redis, migrate, api, worker, web.
+up:
+	docker compose -f docker-compose.yml up -d --build
+
+down:
+	docker compose -f docker-compose.yml down
+
+logs:
+	docker compose -f docker-compose.yml logs -f api worker web
 
 build:
 	go build ./...

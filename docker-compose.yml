@@ -1,0 +1,125 @@
+# Full local stack in one command:
+#
+#   docker compose -f docker-compose.yml up -d --build
+#
+#   Web UI  → http://localhost:3000
+#   API     → http://localhost:8080
+#
+# Values below are dev-only defaults. Override any of them by exporting the
+# variable or putting it in a .env file next to this compose file
+# (e.g. JWT_SECRET=..., WEB_PORT=3001).
+
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-development}
+  DATABASE_URL: postgres://site24x7:site24x7@postgres:5432/site24x7?sslmode=disable
+  REDIS_ADDR: redis:6379
+  JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-jwt-secret-change-me-0123456789}
+  REGION: ${REGION:-default}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-8}
+  SCHEDULER_TICK_MS: ${SCHEDULER_TICK_MS:-1000}
+  CHECK_RETENTION_DAYS: ${CHECK_RETENTION_DAYS:-30}
+
+name: site24x7
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: site24x7
+      POSTGRES_PASSWORD: site24x7
+      POSTGRES_DB: site24x7
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U site24x7 -d site24x7"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: applies pending migrations, then exits. api/worker wait for it.
+  migrate:
+    build: .
+    image: site24x7-backend:local
+    command: ["migrate"]
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    image: site24x7-backend:local
+    command: ["api"]
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      HTTP_ADDR: :8080
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  worker:
+    build: .
+    image: site24x7-backend:local
+    command: ["worker"]
+    restart: unless-stopped
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    image: site24x7-web:local
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8080
+      # Plain-http local stack: don't mark the auth cookie Secure, so login
+      # also works from another device via http://<lan-ip>:3000.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Optional demo data: docker compose run --rm seed
+  seed:
+    build: .
+    image: site24x7-backend:local
+    command: ["seed"]
+    profiles: ["tools"]
+    environment:
+      <<: *backend-env
+      SEED_EMAIL: ${SEED_EMAIL:-demo@example.com}
+      SEED_PASSWORD: ${SEED_PASSWORD:-demo-password-123}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
